@@ -1,19 +1,24 @@
 package TeamMate;
 
-import java.util.Objects;
+/**
+ * Data Model for a single Participant, demonstrating Encapsulation.
+ * Implements Comparable for sorting by skill level (descending).
+ */
+public class Participant implements Comparable<Participant> {
+    private final String id;
+    private final String name;
+    private final String email;
+    private final String interest;
+    private final Role preferredRole;
+    private final int skillLevel;
+    private final int personalityScore;
+    private final PersonalityType personalityType;
 
-public class Participant {
-    private String id;
-    private String name;
-    private String email;
-    private String interest;
-    private Role preferredRole;
-    private int skillLevel;
-    private int personalityScore;
-    private PersonalityType personalityType;
-
+    /**
+     * The primary constructor for creating a participant.
+     */
     public Participant(String id, String name, String email, String interest,
-                       Role preferredRole, int skillLevel, int personalityScore) {
+                       Role preferredRole, int skillLevel, int personalityScore, PersonalityType personalityType) {
         this.id = id;
         this.name = name;
         this.email = email;
@@ -21,13 +26,11 @@ public class Participant {
         this.preferredRole = preferredRole;
         this.skillLevel = skillLevel;
         this.personalityScore = personalityScore;
+        // Classification logic is delegated to the utility class
         this.personalityType = PersonalityClassifier.classify(personalityScore);
     }
 
-    public Participant(String datum, String datum1, String datum2, String datum3, int i, String datum4, int personalityScore, String datum5) {
-    }
-
-    // Getters and Setters
+    // --- Getters ---
     public String getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
@@ -35,9 +38,21 @@ public class Participant {
     public Role getPreferredRole() { return preferredRole; }
     public int getSkillLevel() { return skillLevel; }
     public PersonalityType getPersonalityType() { return personalityType; }
+    public int getPersonalityScore() { return personalityScore; }
+
+    /**
+     * Defines the natural ordering for Participants, used for sorting by skill level.
+     * Higher skill level comes first (descending order).
+     * @param other The participant to compare against.
+     */
+    @Override
+    public int compareTo(Participant other) {
+        return Integer.compare(other.skillLevel, this.skillLevel);
+    }
 
     @Override
     public String toString() {
-        return String.format("%s (%s, %s, %s)", name, interest, preferredRole, personalityType);
+        return String.format("%s (Skill:%d, Role:%s, Type:%s)",
+                name, skillLevel, preferredRole, personalityType);
     }
 }

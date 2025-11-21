@@ -4,9 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Team {
+    // The counter must be static to ensure unique IDs across all team instances
     private static int counter = 1;
-    private String id;
-    private List<Participant> members = new ArrayList<>();
+    private final String id;
+    private final List<Participant> members = new ArrayList<>();
 
     public Team() {
         this.id = "T" + counter++;
@@ -28,8 +29,16 @@ public class Team {
         return id;
     }
 
+    /**
+     * Resets the static team counter, necessary for clean re-runs of the main application.
+     */
+    public static void resetCounter() {
+        counter = 1;
+    }
+
     @Override
     public String toString() {
-        return id + " -> " + members;
+        // Enhanced output to show size
+        return id + " [" + size() + " members] -> " + members;
     }
 }
