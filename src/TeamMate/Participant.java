@@ -15,7 +15,16 @@ public class Participant implements Comparable<Participant> {
     private final PersonalityType personalityType;
 
     /**
-     * The primary constructor for creating a participant.
+     * Primary constructor.
+     *
+     * @param id               participant id
+     * @param name             participant name
+     * @param email            participant email
+     * @param interest         preferred game/interest
+     * @param preferredRole    preferred role enum
+     * @param skillLevel       integer 0-100
+     * @param personalityScore integer 0-100
+     * @param personalityType  optional PersonalityType; if null, classifier is used
      */
     public Participant(String id, String name, String email, String interest,
                        Role preferredRole, int skillLevel, int personalityScore, PersonalityType personalityType) {
@@ -26,8 +35,13 @@ public class Participant implements Comparable<Participant> {
         this.preferredRole = preferredRole;
         this.skillLevel = skillLevel;
         this.personalityScore = personalityScore;
-        // Classification logic is delegated to the utility class
-        this.personalityType = PersonalityClassifier.classify(personalityScore);
+
+        // Use provided personalityType if valid, otherwise classify from score
+        if (personalityType != null && personalityType != PersonalityType.UNCLASSIFIED) {
+            this.personalityType = personalityType;
+        } else {
+            this.personalityType = PersonalityClassifier.classify(personalityScore);
+        }
     }
 
     // --- Getters ---
