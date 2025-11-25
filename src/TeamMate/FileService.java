@@ -6,21 +6,9 @@ import java.util.*;
 
 /**
  * Handles file I/O operations (reading participants, saving teams).
- * - Handles quoted CSV fields (commas inside quotes)
- * - Validates numeric ranges and enum values
- * - Skips invalid rows with informative messages
  */
 public class FileService {
 
-    /**
-     * Loads participants from a CSV file.
-     * Expected CSV columns (header can be present and is skipped):
-     * id,name,email,preferredGame,skillLevel,preferredRole,personalityScore,personalityType (optional)
-     *
-     * @param path CSV file path
-     * @return list of Participants (valid rows only)
-     * @throws IOException on file read errors
-     */
     public List<Participant> loadFromCsv(String path) throws IOException {
         List<Participant> participants = new ArrayList<>();
         Path p = Path.of(path);
@@ -82,9 +70,7 @@ public class FileService {
                         try {
                             personalityType = PersonalityType.valueOf(parts[7].trim().toUpperCase());
                         } catch (IllegalArgumentException iae) {
-                            // Not fatal: we will classify from score instead
                             System.err.printf("Warning line %d: unknown personality type '%s' - will classify from score.%n", lineNo, parts[7]);
-                            personalityType = null;
                         }
                     }
 
@@ -102,11 +88,6 @@ public class FileService {
         return participants;
     }
 
-    /**
-     * Saves formed teams into a CSV file with escaping.
-     *
-     * Header: teamId,memberId,memberName,memberInterest,memberRole,skillLevel,personalityScore,personalityType
-     */
     public void saveTeams(List<Team> teams, String path) throws IOException {
         Path p = Path.of(path);
         try (BufferedWriter bw = Files.newBufferedWriter(p)) {
@@ -132,8 +113,6 @@ public class FileService {
     }
 
     // --- CSV utilities ---
-
-    // Basic CSV splitting that handles quoted fields and escaped quotes.
     private static String[] splitCsvLine(String line) {
         List<String> cols = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
@@ -142,7 +121,7 @@ public class FileService {
             char c = line.charAt(i);
             if (c == '"') {
                 if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    cur.append('"'); // escaped quote
+                    cur.append('"');
                     i++;
                 } else {
                     inQuotes = !inQuotes;
