@@ -1,8 +1,9 @@
 package TeamMate;
 
 /**
- * Role enum used by Participant
+ * Role enum used by Participant.
+ * Updated to exactly match CSV values.
  */
 public enum Role {
-    ATTACKER, DEFENDER, STRATEGIST, SUPPORT, LEADER
+    ATTACKER, DEFENDER, STRATEGIST, SUPPORTER, COORDINATOR
 }

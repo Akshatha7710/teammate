@@ -3,12 +3,15 @@ package TeamMate;
 import java.util.List;
 import java.util.Scanner;
 
+/** Utility class to edit or remove participants from a list */
 public class ParticipantEditor {
 
+    /** Edits participant details via console prompts */
     public static void editParticipant(List<Participant> participants, Scanner scanner) {
         System.out.print("Enter Participant ID to edit: ");
         String pid = scanner.nextLine().trim();
 
+        // Find participant by ID
         Participant p = participants.stream().filter(x -> x.getId().equalsIgnoreCase(pid)).findFirst().orElse(null);
         if (p == null) {
             System.out.println("Participant ID not found.");
@@ -17,6 +20,7 @@ public class ParticipantEditor {
 
         System.out.println("Editing participant: " + p.getName());
 
+        // Update fields if user provides input
         System.out.print("New Name (current: " + p.getName() + "): ");
         String name = scanner.nextLine().trim();
         if (!name.isEmpty()) p.setName(name);
@@ -50,6 +54,7 @@ public class ParticipantEditor {
         System.out.println("Participant updated: " + p);
     }
 
+    /** Removes participant from list by ID */
     public static void removeParticipant(List<Participant> participants, Scanner scanner) {
         System.out.print("Enter Participant ID to remove: ");
         String pid = scanner.nextLine().trim();

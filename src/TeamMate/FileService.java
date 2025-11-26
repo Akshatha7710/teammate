@@ -4,90 +4,94 @@ import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 
-/**
- * Handles file I/O operations (reading participants, saving teams).
- */
 public class FileService {
 
+    /** Load participants from CSV, validates data, defaults unknown personality types to UNCLASSIFIED */
     public List<Participant> loadFromCsv(String path) throws IOException {
         List<Participant> participants = new ArrayList<>();
         Path p = Path.of(path);
         if (!Files.exists(p)) throw new FileNotFoundException("CSV not found: " + path);
 
         try (BufferedReader br = Files.newBufferedReader(p)) {
-            String header = br.readLine(); // skip header if present
+            String header = br.readLine(); // skip header
             int lineNo = 1;
             String line;
             while ((line = br.readLine()) != null) {
                 lineNo++;
                 if (line.trim().isEmpty()) continue;
                 String[] parts = splitCsvLine(line);
+
                 if (parts.length < 7) {
-                    System.err.printf("Skipping line %d: expected at least 7 columns but found %d.%n", lineNo, parts.length);
+                    System.err.printf("Skipping line %d: expected 7 columns but found %d%n", lineNo, parts.length);
                     continue;
                 }
 
                 try {
-                    String id = parts[0].trim();
-                    String name = parts[1].trim();
-                    String email = parts[2].trim();
-                    String preferredGame = parts[3].trim();
-
-                    int skillLevel;
-                    try {
-                        skillLevel = Integer.parseInt(parts[4].trim());
-                    } catch (NumberFormatException nfe) {
-                        System.err.printf("Skipping line %d: invalid skill '%s'%n", lineNo, parts[4]);
-                        continue;
-                    }
-                    if (skillLevel < 0 || skillLevel > 100) {
-                        System.err.printf("Skipping line %d: skill out of range (0-100): %d%n", lineNo, skillLevel);
-                        continue;
-                    }
-
-                    Role role;
-                    try {
-                        role = Role.valueOf(parts[5].trim().toUpperCase());
-                    } catch (IllegalArgumentException iae) {
-                        System.err.printf("Skipping line %d: unknown role '%s'%n", lineNo, parts[5]);
-                        continue;
-                    }
-
-                    int personalityScore;
-                    try {
-                        personalityScore = Integer.parseInt(parts[6].trim());
-                    } catch (NumberFormatException nfe) {
-                        System.err.printf("Skipping line %d: invalid personality score '%s'%n", lineNo, parts[6]);
-                        continue;
-                    }
-                    if (personalityScore < 0 || personalityScore > 100) {
-                        System.err.printf("Skipping line %d: personality score out of range (0-100): %d%n", lineNo, personalityScore);
-                        continue;
-                    }
-
-                    PersonalityType personalityType = null;
-                    if (parts.length >= 8 && !parts[7].trim().isEmpty()) {
-                        try {
-                            personalityType = PersonalityType.valueOf(parts[7].trim().toUpperCase());
-                        } catch (IllegalArgumentException iae) {
-                            System.err.printf("Warning line %d: unknown personality type '%s' - will classify from score.%n", lineNo, parts[7]);
-                        }
-                    }
-
-                    Participant participant = new Participant(
-                            id, name, email, preferredGame,
-                            role, skillLevel, personalityScore, personalityType
-                    );
-                    participants.add(participant);
-
+                    Participant participant = parseParticipant(parts, lineNo);
+                    if (participant != null) participants.add(participant);
                 } catch (Exception ex) {
-                    System.err.printf("Skipping line %d due to unexpected error: %s%n", lineNo, ex.getMessage());
+                    System.err.printf("Skipping line %d: %s%n", lineNo, ex.getMessage());
                 }
             }
         }
         return participants;
     }
 
+    /** Parse a single participant from CSV columns */
+    private Participant parseParticipant(String[] parts, int lineNo) {
+        String id = parts[0].trim();
+        String name = parts[1].trim();
+        String email = parts[2].trim();
+        String preferredGame = parts[3].trim();
+
+        int skillLevel = parseIntInRange(parts[4], 0, 100, "skillLevel", lineNo);
+        if (skillLevel == -1) return null;
+
+        Role role = parseRole(parts[5], lineNo);
+        if (role == null) return null;
+
+        int personalityScore = parseIntInRange(parts[6], 0, 100, "personalityScore", lineNo);
+        if (personalityScore == -1) return null;
+
+        PersonalityType personalityType = PersonalityType.UNCLASSIFIED; // default
+        if (parts.length >= 8 && !parts[7].trim().isEmpty()) {
+            try {
+                personalityType = PersonalityType.valueOf(parts[7].trim().toUpperCase());
+            } catch (IllegalArgumentException iae) {
+                System.err.printf("Warning line %d: unknown personality type '%s'. Defaulting to UNCLASSIFIED.%n",
+                        lineNo, parts[7]);
+            }
+        }
+
+        return new Participant(id, name, email, preferredGame, role, skillLevel, personalityScore, personalityType);
+    }
+
+    /** Parse integer with range check */
+    private int parseIntInRange(String value, int min, int max, String field, int lineNo) {
+        try {
+            int num = Integer.parseInt(value.trim());
+            if (num < min || num > max) {
+                System.err.printf("Line %d: %s out of range (%d-%d): %d%n", lineNo, field, min, max, num);
+                return -1;
+            }
+            return num;
+        } catch (NumberFormatException nfe) {
+            System.err.printf("Line %d: invalid %s '%s'%n", lineNo, field, value);
+            return -1;
+        }
+    }
+
+    /** Parse role from string */
+    private Role parseRole(String value, int lineNo) {
+        try {
+            return Role.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException iae) {
+            System.err.printf("Line %d: unknown role '%s'%n", lineNo, value);
+            return null;
+        }
+    }
+
+    /** Save list of teams to CSV */
     public void saveTeams(List<Team> teams, String path) throws IOException {
         Path p = Path.of(path);
         try (BufferedWriter bw = Files.newBufferedWriter(p)) {
@@ -95,15 +99,15 @@ public class FileService {
             bw.newLine();
             for (Team team : teams) {
                 for (Participant m : team.getMembers()) {
-                    String[] cols = new String[] {
+                    String[] cols = new String[]{
                             team.getId(),
                             m.getId(),
                             m.getName(),
                             m.getInterest(),
                             m.getPreferredRole().name(),
-                            Integer.toString(m.getSkillLevel()),
-                            Integer.toString(m.getPersonalityScore()),
-                            m.getPersonalityType().name()
+                            String.valueOf(m.getSkillLevel()),
+                            String.valueOf(m.getPersonalityScore()),
+                            m.getPersonalityType() != null ? m.getPersonalityType().name() : "UNCLASSIFIED"
                     };
                     bw.write(joinEscaped(cols));
                     bw.newLine();
@@ -112,7 +116,7 @@ public class FileService {
         }
     }
 
-    // --- CSV utilities ---
+    /** Split CSV line handling quotes */
     private static String[] splitCsvLine(String line) {
         List<String> cols = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
@@ -137,6 +141,7 @@ public class FileService {
         return cols.toArray(new String[0]);
     }
 
+    /** Join array into CSV line with escaping */
     private static String joinEscaped(String[] cols) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cols.length; i++) {
@@ -146,6 +151,7 @@ public class FileService {
         return sb.toString();
     }
 
+    /** Escape CSV special characters */
     private static String escapeCsv(String s) {
         if (s == null) return "";
         String out = s.replace("\"", "\"\"");

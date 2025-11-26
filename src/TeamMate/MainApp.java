@@ -5,34 +5,38 @@ import java.util.List;
 import java.util.Scanner;
 
 /**
- * Console entrypoint for TeamMate with runtime menu options
+ * Console entry point for TeamMate.
+ * Provides runtime menu for Participant and Organizer actions.
  */
 public class MainApp {
 
-    private static final int DEFAULT_TEAM_SIZE = 4;
     private static final String INPUT_FILE = "participants_sample.csv";
     private static final String OUTPUT_FILE = "formed_teams.csv";
 
     public static void main(String[] args) {
-        System.out.println("--- TeamMate Application Initiated ---");
+        System.out.println("--- TeamMate Application ---");
+
         FileService fileService = new FileService();
         Scanner scanner = new Scanner(System.in);
 
+        // Load participants from CSV
         List<Participant> participants;
         try {
             participants = fileService.loadFromCsv(INPUT_FILE);
         } catch (IOException e) {
             System.err.println("Error reading CSV file: " + e.getMessage());
+            scanner.close();
             return;
         }
 
         if (participants.isEmpty()) {
             System.err.println("No participants loaded. Exiting.");
+            scanner.close();
             return;
         }
 
-        boolean exit = false;
         List<Team> formedTeams = null;
+        boolean exit = false;
 
         while (!exit) {
             System.out.println("\nSelect role:");
@@ -40,9 +44,8 @@ public class MainApp {
             System.out.println("2. Organizer");
             System.out.println("3. Exit");
             System.out.print("Choice: ");
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // consume newline
 
+            int choice = readInt(scanner);
             switch (choice) {
                 case 1 -> handleParticipant(participants, formedTeams, scanner);
                 case 2 -> formedTeams = handleOrganizer(participants, scanner, fileService);
@@ -55,6 +58,7 @@ public class MainApp {
         System.out.println("--- TeamMate Application Complete ---");
     }
 
+    // --- Participant Menu ---
     private static void handleParticipant(List<Participant> participants, List<Team> teams, Scanner scanner) {
         System.out.print("Enter your Participant ID: ");
         String pid = scanner.nextLine().trim();
@@ -78,6 +82,7 @@ public class MainApp {
         }
     }
 
+    // --- Organizer Menu ---
     private static List<Team> handleOrganizer(List<Participant> participants, Scanner scanner, FileService fileService) {
         List<Team> teams = null;
         boolean back = false;
@@ -90,17 +95,16 @@ public class MainApp {
             System.out.println("4. Show All Participants");
             System.out.println("5. Back");
             System.out.print("Choice: ");
-            int choice = scanner.nextInt();
-            scanner.nextLine();
 
+            int choice = readInt(scanner);
             switch (choice) {
                 case 1 -> ParticipantEditor.editParticipant(participants, scanner);
                 case 2 -> ParticipantEditor.removeParticipant(participants, scanner);
                 case 3 -> {
                     System.out.print("Enter team size: ");
-                    int size = scanner.nextInt();
-                    scanner.nextLine();
+                    int size = readInt(scanner);
                     teams = TeamFormation.formTeams(participants, size);
+
                     try {
                         fileService.saveTeams(teams, OUTPUT_FILE);
                         System.out.printf("Teams saved to %s%n", OUTPUT_FILE);
@@ -114,5 +118,17 @@ public class MainApp {
             }
         }
         return teams;
+    }
+
+    // --- Utility method to safely read integer input ---
+    private static int readInt(Scanner scanner) {
+        while (true) {
+            try {
+                String input = scanner.nextLine().trim();
+                return Integer.parseInt(input);
+            } catch (NumberFormatException nfe) {
+                System.out.print("Invalid number. Try again: ");
+            }
+        }
     }
 }
