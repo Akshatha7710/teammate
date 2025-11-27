@@ -5,76 +5,103 @@ import java.util.Scanner;
 
 public class ParticipantEditor {
 
-    public static void editParticipant(List<Participant> participants, Scanner scanner) {
-        System.out.print("Enter Participant ID to edit: ");
-        String pid = scanner.nextLine().trim();
+    private static final List<String> GAME_OPTIONS = List.of("CS:GO", "FIFA", "DOTA2", "LOL", "VALORANT");
+    private static final List<Role> ROLE_OPTIONS = List.of(Role.ATTACKER, Role.DEFENDER, Role.STRATEGIST, Role.SUPPORTER, Role.COORDINATOR);
 
-        Participant p = participants.stream().filter(x -> x.getId().equalsIgnoreCase(pid)).findFirst().orElse(null);
-        if (p == null) {
-            System.out.println("Participant ID not found.");
+    // Edit participant
+    public static void editParticipant(List<Participant> participants, Scanner scanner) {
+        System.out.print("Enter participant ID to edit: ");
+        String id = scanner.nextLine().trim();
+
+        if (!id.matches("P\\d+")) {
+            System.out.println("Invalid input.");
             return;
         }
 
-        System.out.println("Editing participant: " + p.getName());
+        Participant p = participants.stream().filter(x -> x.getId().equalsIgnoreCase(id)).findFirst().orElse(null);
+        if (p == null) {
+            System.out.println("ID not available in list.");
+            return;
+        }
 
-        System.out.print("New Name (current: " + p.getName() + "): ");
+        System.out.println("Editing: " + p);
+
+        // Edit Name
+        System.out.print("New name (enter to skip): ");
         String name = scanner.nextLine().trim();
         if (!name.isEmpty()) p.setName(name);
 
-        System.out.print("New Email (current: " + p.getEmail() + "): ");
-        String email = scanner.nextLine().trim();
-        if (!email.isEmpty()) p.setEmail(email);
-
-        System.out.print("New Interest (current: " + p.getInterest() + "): ");
-        String interest = scanner.nextLine().trim();
-        if (!interest.isEmpty()) p.setInterest(interest);
-
-        // *** SKILL LEVEL 1-10 UPDATE ***
-        System.out.print("New Skill (1-10) (current: " + p.getSkillLevel() + "): ");
-        String skillStr = scanner.nextLine().trim();
-        if (!skillStr.isEmpty()) {
+        // Edit Preferred Game
+        System.out.println("Choose new preferred game (enter number, 0 to skip):");
+        for (int i = 0; i < GAME_OPTIONS.size(); i++) {
+            System.out.println((i + 1) + ") " + GAME_OPTIONS.get(i));
+        }
+        System.out.print("Choice: ");
+        String gameChoice = scanner.nextLine().trim();
+        if (!gameChoice.isEmpty() && !gameChoice.equals("0")) {
             try {
-                int skill = Integer.parseInt(skillStr);
-                if (skill >= 1 && skill <= 10) {
-                    p.setSkillLevel(skill);
+                int idx = Integer.parseInt(gameChoice) - 1;
+                if (idx >= 0 && idx < GAME_OPTIONS.size()) {
+                    p.setInterest(GAME_OPTIONS.get(idx));
                 } else {
-                    System.out.println("Skill must be between 1 and 10. Keeping previous value.");
+                    System.out.println("Enter a number between 1 and " + GAME_OPTIONS.size());
                 }
-            } catch (NumberFormatException ignored) {
-                System.out.println("Invalid skill input. Keeping previous value.");
+            } catch (Exception e) {
+                System.out.println("Enter a number between 1 and " + GAME_OPTIONS.size());
             }
         }
 
-        // Prompt to match the Role.java enum
-        System.out.print("New Role (ATTACKER, DEFENDER, STRATEGIST, SUPPORTER, COORDINATOR) (current: " + p.getPreferredRole() + "): ");
-        String roleStr = scanner.nextLine().trim();
-        if (!roleStr.isEmpty()) {
+        // Edit Role
+        System.out.println("Choose new role (enter number, 0 to skip):");
+        for (int i = 0; i < ROLE_OPTIONS.size(); i++) {
+            System.out.println((i + 1) + ") " + ROLE_OPTIONS.get(i));
+        }
+        System.out.print("Choice: ");
+        String roleChoice = scanner.nextLine().trim();
+        if (!roleChoice.isEmpty() && !roleChoice.equals("0")) {
             try {
-                p.setPreferredRole(Role.valueOf(roleStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-                System.out.println("Invalid role. Keeping previous value.");
+                int idx = Integer.parseInt(roleChoice) - 1;
+                if (idx >= 0 && idx < ROLE_OPTIONS.size()) {
+                    p.setPreferredRole(ROLE_OPTIONS.get(idx));
+                } else {
+                    System.out.println("Enter a number between 1 and " + ROLE_OPTIONS.size());
+                }
+            } catch (Exception e) {
+                System.out.println("Enter a number between 1 and " + ROLE_OPTIONS.size());
             }
         }
 
-        System.out.print("New Personality Score (0-100) (current: " + p.getPersonalityScore() + "): ");
-        String scoreStr = scanner.nextLine().trim();
-        if (!scoreStr.isEmpty()) {
-            try {
-                p.setPersonalityScore(Integer.parseInt(scoreStr));
-            } catch (NumberFormatException ignored) {
-                System.out.println("Invalid personality score. Keeping previous value.");
-            }
-        }
-
-        System.out.println("Participant updated: " + p);
+        System.out.println("Skill and Personality cannot be edited.");
+        AppLogger.info("Participant edited: " + p.getId());
     }
 
-    public static void removeParticipant(List<Participant> participants, Scanner scanner) {
-        System.out.print("Enter Participant ID to remove: ");
-        String pid = scanner.nextLine().trim();
+    // Remove participant
+    public static void removeParticipant(List<Participant> participants, List<Team> teams, List<Participant> unformed, Scanner scanner) {
+        System.out.print("Enter participant ID to remove: ");
+        String id = scanner.nextLine().trim();
 
-        boolean removed = participants.removeIf(p -> p.getId().equalsIgnoreCase(pid));
-        if (removed) System.out.println("Participant removed successfully.");
-        else System.out.println("Participant ID not found.");
+        if (!id.matches("P\\d+")) {
+            System.out.println("Invalid input.");
+            return;
+        }
+
+        Participant p = participants.stream().filter(x -> x.getId().equalsIgnoreCase(id)).findFirst().orElse(null);
+        if (p == null) {
+            System.out.println("ID not available in list.");
+            return;
+        }
+
+        // Remove from any team
+        for (Team t : teams) {
+            if (t.getMembers().stream().anyMatch(m -> m.getId().equalsIgnoreCase(id))) {
+                t.removeMember(p);
+                AppLogger.info("Removed participant " + id + " from team " + t.getId());
+            }
+        }
+
+        participants.remove(p);
+        unformed.removeIf(x -> x.getId().equalsIgnoreCase(id));
+        AppLogger.info("Participant removed: " + id);
+        System.out.println("Participant " + id + " has been removed successfully.");
     }
 }

@@ -1,320 +1,263 @@
 package TeamMate;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 public class MainApp {
 
-    private static final String INPUT_FILE = "participants_sample.csv";
-    private static final String OUTPUT_FILE = "formed_teams.csv";
-
-    private static final ExecutorService executor = Executors.newFixedThreadPool(4);
-
-    // Variable to store unformed participants in memory from the last run
+    private static final FileService fileService = new FileService();
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static List<Participant> unformedParticipantsCache = new CopyOnWriteArrayList<>();
-
-    // NEW: Store the last used team size (N) for use with unformed participants
+    private static List<Team> teams = new CopyOnWriteArrayList<>();
+    private static List<Participant> participants = new CopyOnWriteArrayList<>();
     private static int lastTeamSize = 0;
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        FileService fileService = new FileService();
+        AppLogger.info("Application starting up...");
 
-        List<Participant> participants = new CopyOnWriteArrayList<>();
         try {
-            participants = fileService.loadParticipants(INPUT_FILE);
-            System.out.printf("%d total participants loaded (including 0 unformed).%n", participants.size());
+            participants = new CopyOnWriteArrayList<>(fileService.loadParticipants(FileService.INPUT_FILE));
+            AppLogger.info("Loaded " + participants.size() + " participants from CSV.");
         } catch (IOException e) {
-            System.err.println("CSV load failed. Starting with empty participant list: " + e.getMessage());
+            AppLogger.error("Failed loading participants", e);
+            participants = new CopyOnWriteArrayList<>();
         }
 
-        List<Team> teams = null;
+        try {
+            teams = new CopyOnWriteArrayList<>(fileService.loadTeams(FileService.OUTPUT_FILE, participants));
+            Team.initializeCounter(teams);
+            AppLogger.info("Loaded " + teams.size() + " teams from CSV.");
+        } catch (IOException e) {
+            AppLogger.warning("No formed teams loaded.");
+            teams = new CopyOnWriteArrayList<>();
+            Team.resetCounter();
+        }
 
         boolean exit = false;
         while (!exit) {
-            System.out.println("\nSelect role:");
-            System.out.println("1. Participant ");
-            System.out.println("2. Organizer ");
-            System.out.println("3. Exit ");
-            System.out.print("Choice: ");
-            int choice = getInt(scanner, 1, 3);
-
-            System.out.println("------------");
-
+            showMainMenu();
+            String choice = scanner.nextLine().trim();
             switch (choice) {
-                case 1 -> handleParticipant(scanner, participants, fileService, teams);
-                case 2 -> teams = handleOrganizer(scanner, participants, fileService, teams);
-                case 3 -> exit = true;
+                case "1": participantMenu(scanner); break;
+                case "2": organizerMenu(scanner); break;
+                case "3": exit = true; break;
+                default: System.out.println("Invalid choice."); break;
             }
         }
 
         executor.shutdown();
-        scanner.close();
-        System.out.println("--- Application Closed ---\n");
+        AppLogger.info("Application shutting down.");
     }
 
-    private static void handleParticipant(Scanner scanner, List<Participant> participants,
-                                          FileService fileService, List<Team> teams) {
-        System.out.println("1. Fill Survey ");
-        System.out.println("2. Check Team Assignment ");
-        System.out.println("3. Back ");
+    private static void showMainMenu() {
+        System.out.println("\n1) Participant");
+        System.out.println("2) Organizer");
+        System.out.println("3) Exit");
         System.out.print("Choice: ");
-        int choice = getInt(scanner, 1, 3);
-
-        switch (choice) {
-            case 1 -> {
-                // PASS unformedParticipantsCache to SurveyProcessor
-                SurveyProcessor surveyJob = new SurveyProcessor(scanner, participants, fileService, unformedParticipantsCache);
-                Future<Participant> future = executor.submit(surveyJob);
-                try {
-                    future.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    System.err.println("Survey failed: " + e.getMessage());
-                    Thread.currentThread().interrupt();
-                }
-            }
-            case 2 -> {
-                if (teams == null || teams.isEmpty()) {
-                    System.out.println("No teams have been formed yet.");
-                    break;
-                }
-
-                System.out.print("Enter your Participant ID to check assignment: ");
-                String pid = scanner.nextLine().trim();
-
-                Team assignedTeam = findTeamByParticipantId(teams, pid);
-
-                if (assignedTeam != null) {
-                    System.out.println("\n--- Your Team Assignment ---");
-                    System.out.println("You are assigned to Team ID: " + assignedTeam.getId());
-                    System.out.println("Other members in your team:");
-
-                    assignedTeam.getMembers().stream()
-                            .filter(p -> !p.getId().equalsIgnoreCase(pid))
-                            .forEach(p -> System.out.println("  - " + p.getName() + " (Role: " + p.getPreferredRole() + ")"));
-                    System.out.println("---------------------------\n");
-                } else {
-                    System.out.println("You are not currently assigned to a formed team.");
-                }
-            }
-            case 3 -> {}
-        }
     }
 
-    private static List<Team> handleOrganizer(Scanner scanner, List<Participant> participants,
-                                              FileService fileService, List<Team> teams) {
+    // Participant submenu
+    private static void participantMenu(Scanner scanner) {
         boolean back = false;
-
         while (!back) {
-            System.out.println("\n--- Organizer Menu ---");
-            System.out.println("1. Edit Participant ");
-            System.out.println("2. Remove Participant ");
-            System.out.println("3. Form Teams ");
-            System.out.println("4. Show All Participants ");
-            System.out.println("5. View Unformed Participants (In-Memory)");
-            System.out.println("6. Form Team with Unformed Participants");
-            System.out.println("7. Back ");
+            System.out.println("\n--- Participant Menu ---");
+            System.out.println("1) Fill Survey");
+            System.out.println("2) View My Team");
+            System.out.println("3) Back");
             System.out.print("Choice: ");
-            int choice = getInt(scanner, 1, 7);
-
-            switch (choice) {
-                case 1:
-                    ParticipantEditor.editParticipant(participants, scanner);
-                    try {
-                        fileService.saveParticipants(participants, INPUT_FILE);
-                        System.out.println("Participant list updated and saved to " + INPUT_FILE);
-                    } catch (IOException e) {
-                        System.err.println("Error saving changes to CSV: " + e.getMessage());
-                    }
+            String c = scanner.nextLine().trim();
+            switch (c) {
+                case "1":
+                    Future<Participant> f = executor.submit(new SurveyProcessor(scanner, participants, fileService, unformedParticipantsCache));
+                    try { f.get(); } catch (Exception e) { AppLogger.warning("Survey interrupted."); }
                     break;
-
-                case 2:
-                    ParticipantEditor.removeParticipant(participants, scanner);
-                    try {
-                        fileService.saveParticipants(participants, INPUT_FILE);
-                        System.out.println("Participant removed and list saved to " + INPUT_FILE);
-                    } catch (IOException e) {
-                        System.err.println("Error saving changes to CSV: " + e.getMessage());
-                    }
+                case "2":
+                    viewMyTeam(scanner);
                     break;
-
-                case 3: // Form & Validate Teams (Large Batch)
-                    if (participants.isEmpty()) {
-                        System.out.println("Cannot form teams: No participants loaded.");
-                        break;
-                    }
-                    System.out.print("Enter desired team size (This will be the exact size of all formed teams): ");
-                    int size = getInt(scanner, 3, participants.size());
-
-                    TeamBuilder builder = new TeamBuilder();
-                    try {
-                        TeamBuilder.TeamFormationResult result = builder.buildTeamsAndValidate(participants, size);
-                        teams = result.formedTeams;
-                        unformedParticipantsCache = result.unformedParticipants;
-
-                        // Store the size N
-                        lastTeamSize = size;
-
-                        System.out.printf("\nSuccessfully Formed Teams: %d (All size %d)%n", teams.size(), size);
-                        System.out.printf("Participants in Waiting List: %d (Stored in memory for this session)%n",
-                                unformedParticipantsCache.size());
-
-                        fileService.saveTeams(teams, OUTPUT_FILE);
-                        System.out.println("Teams saved to " + OUTPUT_FILE);
-
-                    } catch (Exception e) {
-                        System.err.println("Error during team formation: " + e.getMessage());
-                    } finally {
-                        builder.shutdown();
-                    }
-                    break;
-
-                case 4: // Show All Participants (Organizer only)
-                    participants.forEach(System.out::println);
-                    break;
-
-                case 5: // View Unformed Participants (IN-MEMORY ONLY)
-                    if (unformedParticipantsCache.isEmpty()) {
-                        System.out.println("No participants in the waiting list (in-memory).");
-                    } else {
-                        System.out.println("\n--- Unformed Participants (In-Memory) ---");
-                        unformedParticipantsCache.forEach(System.out::println);
-                    }
-                    break;
-
-                case 6: // Form Team with Unformed Participants (Now respects size N)
-                    // Use the last size, or ask if it was never set (default to 3 as minimum)
-                    int requiredSize = (lastTeamSize > 0) ? lastTeamSize : getInt(scanner, 3, 10);
-
-                    System.out.printf("Attempting to form one team of size %d from the waiting list...%n", requiredSize);
-                    List<Team> newTeam = attemptFormTeamFromUnformed(fileService, teams, requiredSize);
-
-                    if (newTeam != null) {
-                        if (teams == null) teams = new CopyOnWriteArrayList<>();
-                        teams.addAll(newTeam);
-                        System.out.printf("\nSUCCESS: Team %s formed from the waiting list and added to formed teams.%n", newTeam.getFirst().getId());
-
-                        try {
-                            fileService.saveTeams(teams, OUTPUT_FILE);
-                            System.out.println("All formed teams saved to " + OUTPUT_FILE);
-                        } catch (IOException e) {
-                            System.err.println("Error saving formed teams to CSV: " + e.getMessage());
-                        }
-                    }
-                    break;
-
-                case 7:
+                case "3":
                     back = true;
                     break;
+                default:
+                    System.out.println("Invalid.");
             }
         }
-        return teams;
     }
 
-    /**
-     * Attempts to form a single team of EXACT requiredSize from the unformed cache
-     * based on personality criteria (1L, 1-2T, rest Balanced/Other).
-     * @param requiredSize The exact size N of the team to form.
-     */
-    private static List<Team> attemptFormTeamFromUnformed(FileService fileService, List<Team> formedTeams, int requiredSize) {
-        if (unformedParticipantsCache.size() < requiredSize) {
-            System.out.println("ERROR: Cannot form a team of " + requiredSize + ". Only " + unformedParticipantsCache.size() + " participants in the waiting list.");
-            return null;
+    private static void viewMyTeam(Scanner scanner) {
+        if (participants.isEmpty()) {
+            System.out.println("❌ No participants available yet.");
+            return;
         }
 
-        // 1. Separate by required personality types (Use mutable lists)
-        // These lists will contain copies of the references, allowing safe removal from the cache later.
-        List<Participant> leaders = unformedParticipantsCache.stream()
-                .filter(p -> p.getPersonalityType() == PersonalityType.LEADER)
-                .collect(Collectors.toCollection(ArrayList::new));
+        System.out.print("Enter your Participant ID: ");
+        String input = scanner.nextLine().trim();
 
-        List<Participant> thinkers = unformedParticipantsCache.stream()
-                .filter(p -> p.getPersonalityType() == PersonalityType.THINKER)
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        List<Participant> others = unformedParticipantsCache.stream()
-                .filter(p -> p.getPersonalityType() != PersonalityType.LEADER && p.getPersonalityType() != PersonalityType.THINKER)
-                .collect(Collectors.toCollection(ArrayList::new));
-
-        // 2. Check for minimum requirements: 1 Leader, 1 Thinker
-        if (leaders.isEmpty() || thinkers.isEmpty()) {
-            System.out.println("ERROR: Cannot form a team. Waiting list requires at least one LEADER and one THINKER.");
-            return null;
+        // Check if input is numeric choice (menu mis-input)
+        if (input.isEmpty() || input.matches("\\D+")) {
+            System.out.println("❌ Invalid Participant ID.");
+            return;
         }
 
-        int requiredOthers = requiredSize - 2; // spots remaining after 1L and 1T
+        Participant found = participants.stream()
+                .filter(p -> p.getId().equalsIgnoreCase(input))
+                .findFirst()
+                .orElse(null);
 
-        // Check if we can satisfy the 1-2 Thinker rule with the remaining slots
-        if (requiredOthers < 0) {
-            System.out.println("ERROR: Required size is too small to accommodate 1L, 1T. Min size is 3.");
-            return null;
+        if (found == null) {
+            System.out.println("❌ Participant ID is not available in the list.");
+            return;
         }
 
-        // This check implicitly ensures we have at least 1 BALANCED or UNCLASSIFIED member
-        if (others.size() < requiredOthers) {
-            System.out.printf("ERROR: Cannot form a team of size %d. Waiting list needs %d other members (Balanced/Unclassified) but only found %d.%n",
-                    requiredSize, requiredOthers, others.size());
-            return null;
+        Team t = findTeamByParticipantId(teams, found.getId());
+        if (t == null) {
+            System.out.println("❌ You are not yet assigned to a team.");
+            return;
         }
 
-        // 3. Select and form the team
-        Team newTeam = new Team();
-
-        // Select 1 Leader and 1 Thinker
-        // FIX: Using get(0) instead of getFirst() for Java version compatibility
-        Participant leader = leaders.get(0);
-        Participant thinker = thinkers.get(0);
-
-        List<Participant> selectedMembers = new ArrayList<>();
-        selectedMembers.add(leader);
-        selectedMembers.add(thinker);
-
-        // Select the required number of 'other' members (0 to N-2)
-        selectedMembers.addAll(others.subList(0, requiredOthers));
-
-        // Add all selected members to the team
-        for (Participant p : selectedMembers) {
-            newTeam.addMember(p);
+        System.out.println("✅ Your Team ID: " + t.getId());
+        System.out.println("Members:");
+        for (Participant m : t.getMembers()) {
+            System.out.println(" - " + m);
         }
-
-        // 4. Update the in-memory cache by removing the members used
-        unformedParticipantsCache.remove(leader);
-        unformedParticipantsCache.remove(thinker);
-
-        // Remove the 'others' that were used from the cache.
-        unformedParticipantsCache.removeAll(selectedMembers.subList(2, requiredSize));
-
-        return List.of(newTeam);
     }
 
-    // Helper method to find a participant's team (remains the same)
-    private static Team findTeamByParticipantId(List<Team> teams, String participantId) {
-        if (teams == null) return null;
-        for (Team team : teams) {
-            for (Participant member : team.getMembers()) {
-                if (member.getId().equalsIgnoreCase(participantId)) {
-                    return team;
+
+    // Organizer submenu
+    private static void organizerMenu(Scanner scanner) {
+        boolean back = false;
+        while (!back) {
+            System.out.println("\n--- Organizer Menu ---");
+            System.out.println("1) Edit Participant");
+            System.out.println("2) Remove Participant");
+            System.out.println("3) View Unformed Participants");
+            System.out.println("4) View Logger Data");
+            System.out.println("5) View All Participants");
+            System.out.println("6) Make Team With Unformed Participants");
+            System.out.println("7) Form Teams (From ALL participants)");
+            System.out.println("8) Back");
+            System.out.print("Choice: ");
+            String c = scanner.nextLine().trim();
+            try {
+                switch (c) {
+                    case "1":
+                        ParticipantEditor.editParticipant(participants, scanner);
+                        fileService.saveParticipants(participants, FileService.INPUT_FILE);
+                        break;
+                    case "2":
+                        ParticipantEditor.removeParticipant(participants, teams, unformedParticipantsCache, scanner);
+                        fileService.saveParticipants(participants, FileService.INPUT_FILE);
+                        fileService.saveTeams(teams, FileService.OUTPUT_FILE);
+                        break;
+                    case "3":
+                        if (unformedParticipantsCache.isEmpty()) System.out.println("No unformed participants.");
+                        else unformedParticipantsCache.forEach(System.out::println);
+                        break;
+                    case "4":
+                        List<String> logs = AppLogger.getRecentLogs();
+                        logs.forEach(System.out::println);
+                        break;
+                    case "5":
+                        participants.stream().sorted(Comparator.comparing(Participant::getId)).forEach(System.out::println);
+                        break;
+                    case "6":
+                        makeTeamFromUnformed(scanner);
+                        break;
+                    case "7":
+                        formTeamsFromAll(scanner);
+                        break;
+                    case "8":
+                        back = true; break;
+                    default:
+                        System.out.println("Invalid option.Choose a number between 1 and 8.");
                 }
+            } catch (IOException e) {
+                AppLogger.error("File I/O error", e);
+            } catch (TeamMateException e) {
+                AppLogger.error("TeamMate error: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    // Form teams using ONLY unformedParticipantsCache (strict mode)
+    private static void makeTeamFromUnformed(Scanner scanner) throws TeamMateException, IOException {
+        if (unformedParticipantsCache.size() < 3) {
+            System.out.println("Not enough participants in the waiting list.");
+            return;
+        }
+
+        System.out.print("Enter desired team size (must be >= 3): ");
+        int teamSize = 0;
+        try {
+            teamSize = Integer.parseInt(scanner.nextLine().trim()); // read only once
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid number, try again.");
+            return;
+        }
+
+        if (teamSize < 3) {
+            System.out.println("Team size must be at least 3.");
+            return;
+        }
+
+        lastTeamSize = teamSize;
+
+        // === Core team formation logic ===
+        TeamBuilder tb = new TeamBuilder(); // relaxed mode for unformed participants
+        TeamBuilder.TeamFormationResult res = tb.buildTeamsFromUnformed(
+                new ArrayList<>(unformedParticipantsCache), teamSize);
+
+        if (res.formedTeams.isEmpty()) {
+            System.out.println("No valid team can be formed with the remaining unformed participants.");
+            return;
+        }
+
+        // Print newly formed teams
+        for (Team t : res.formedTeams) {
+            System.out.println(t);
+        }
+
+        // Update unformed participants cache
+        unformedParticipantsCache = res.unformedParticipants;
+
+        // Add formed teams to global teams list and save
+        teams.addAll(res.formedTeams);
+        fileService.saveTeams(teams, FileService.OUTPUT_FILE);
+
+        AppLogger.info("Formed " + res.formedTeams.size() + " team(s) from unformed cache.");
+        System.out.println("Formed " + res.formedTeams.size() + " team(s).");
+    }
+
+
+    // Form teams using ALL participants (strict mode)
+    private static void formTeamsFromAll(Scanner scanner) throws TeamMateException, IOException {
+        System.out.print("Enter desired team size (must be >= 3): ");
+        int teamSize;
+        try { teamSize = Integer.parseInt(scanner.nextLine().trim()); } catch (Exception e) { System.out.println("Invalid."); return; }
+        lastTeamSize = teamSize;
+        TeamBuilder tb = new TeamBuilder();
+        TeamBuilder.TeamFormationResult res = tb.buildTeamsAndValidate(new ArrayList<>(participants), teamSize);
+        if (res.formedTeams.isEmpty()) {
+            System.out.println("No valid teams could be formed from all participants.");
+            return;
+        }
+        teams.addAll(res.formedTeams);
+        // Update unformedParticipantsCache to the latest unformed participants
+        unformedParticipantsCache.clear();
+        unformedParticipantsCache.addAll((Collection<? extends Participant>) res.unformedParticipants);
+        fileService.saveTeams(teams, FileService.OUTPUT_FILE);
+        fileService.saveParticipants(participants, FileService.INPUT_FILE);
+        AppLogger.info("Formed " + res.formedTeams.size() + " team(s) from all participants.");
+        System.out.println("Formed " + res.formedTeams.size() + " team(s). Unformed participants: " + res.unformedParticipants.size());
+    }
+
+    private static Team findTeamByParticipantId(List<Team> teams, String participantId) {
+        for (Team t : teams) {
+            for (Participant m : t.getMembers()) {
+                if (m.getId().equalsIgnoreCase(participantId)) return t;
             }
         }
         return null;
-    }
-
-    // Utility: read int input within range (remains the same)
-    private static int getInt(Scanner scanner, int min, int max) {
-        while (true) {
-            String line = scanner.nextLine().trim();
-            try {
-                int val = Integer.parseInt(line);
-                if (val < min || val > max) throw new NumberFormatException();
-                return val;
-            } catch (NumberFormatException e) {
-                System.out.printf("Enter a number between %d and %d: ", min, max);
-            }
-        }
     }
 }

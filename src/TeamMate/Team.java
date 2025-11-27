@@ -1,42 +1,48 @@
 package TeamMate;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-/** Represents a team of participants */
 public class Team {
-    private static int counter = 1; // used to assign unique team IDs
-    private final String id;         // team ID
+    private static final AtomicInteger COUNTER = new AtomicInteger(1);
+    private final String id;
     private final List<Participant> members = new ArrayList<>();
 
-    /** Creates a new team with unique ID */
     public Team() {
-        this.id = "T" + counter++;
+        this.id = "T" + COUNTER.getAndIncrement();
     }
 
-    /** Adds a participant to the team */
-    public void addMember(Participant p) {
-        members.add(p);
+    public static void resetCounter() { COUNTER.set(1); }
+
+    public static void initializeCounter(List<Team> existing) {
+        int max = existing.stream()
+                .map(Team::getId)
+                .map(id -> id.replaceAll("\\D+", ""))
+                .filter(s -> !s.isEmpty())
+                .mapToInt(Integer::parseInt)
+                .max().orElse(0);
+        COUNTER.set(max + 1);
     }
 
-    /** Returns an unmodifiable list of team members */
-    public List<Participant> getMembers() {
-        return Collections.unmodifiableList(members);
-    }
-
-    /** Returns number of members */
+    public String getId() { return id; }
+    public List<Participant> getMembers() { return Collections.unmodifiableList(members); }
     public int size() { return members.size(); }
 
-    /** Returns team ID */
-    public String getId() { return id; }
+    public void addMember(Participant p) { members.add(p); }
+    public void removeMember(Participant p) { members.remove(p); }
 
-    /** Resets team counter (useful for testing) */
-    public static void resetCounter() { counter = 1; }
+    public double averageSkill() {
+        return members.stream().mapToInt(Participant::getSkillLevel).average().orElse(0.0);
+    }
 
-    /** Short string representation of team */
+    public Set<Role> rolesPresent() {
+        return members.stream().map(Participant::getPreferredRole).collect(Collectors.toSet());
+    }
+
     @Override
     public String toString() {
-        return id + " [" + size() + " members]";
+        return String.format("%s size=%d avgSkill=%.1f members=%s",
+                id, size(), averageSkill(), members.stream().map(Participant::getId).toList());
     }
 }
