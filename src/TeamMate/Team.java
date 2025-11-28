@@ -1,10 +1,11 @@
 package TeamMate;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class Team {
+public class Team implements Serializable {
     private static final AtomicInteger COUNTER = new AtomicInteger(1);
     private final String id;
     private final List<Participant> members = new ArrayList<>();

@@ -2,11 +2,10 @@ package TeamMate;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 public class AppLogger {
+
     private static final LinkedList<String> LOGS = new LinkedList<>();
     private static final int MAX_LOGS = 1000;
     private static final DateTimeFormatter TF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -21,10 +20,16 @@ public class AppLogger {
 
     public static void info(String s) { add("INFO", s); }
     public static void warning(String s) { add("WARN", s); }
+
+    // Logs an error message with an optional Exception
     public static void error(String s, Exception e) {
         add("ERROR", s + (e == null ? "" : " -> " + e.getMessage()));
         if (e != null) e.printStackTrace(System.err);
     }
+
+    // Overload for error message without an Exception
+    public static void error(String s) { add("ERROR", s); }
+
     public static void debug(String s) { add("DEBUG", s); }
 
     public static List<String> getRecentLogs() {

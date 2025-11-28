@@ -8,6 +8,7 @@ public class MainApp {
 
     private static final FileService fileService = new FileService();
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final TeamMateDB teamMateDB = new TeamMateDB(); // INSTANTIATES & LOADS DB
     private static List<Participant> unformedParticipantsCache = new CopyOnWriteArrayList<>();
     private static List<Team> teams = new CopyOnWriteArrayList<>();
     private static List<Participant> participants = new CopyOnWriteArrayList<>();
@@ -17,21 +18,60 @@ public class MainApp {
         Scanner scanner = new Scanner(System.in);
         AppLogger.info("Application starting up...");
 
+        // ----------------------------------------------------
+        // SHUTDOWN HOOK: This ensures data is saved when the app closes
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            AppLogger.info("Application received shutdown signal. Saving data...");
+            try {
+                teamMateDB.saveToDisk();
+                AppLogger.info("Database saved successfully.");
+            } catch (TeamMateDBException e) {
+                AppLogger.error("Failed to save database on shutdown.", e);
+            }
+        }));
+        // ----------------------------------------------------
+
+        // Step 1: Initialize participants list from CSV
         try {
-            participants = new CopyOnWriteArrayList<>(fileService.loadParticipants(FileService.INPUT_FILE));
-            AppLogger.info("Loaded " + participants.size() + " participants from CSV.");
+            List<Participant> csvParticipants = fileService.loadParticipants(FileService.INPUT_FILE);
+            AppLogger.info("Loaded " + csvParticipants.size() + " participants from CSV.");
+
+            // Add all CSV participants to the in-memory participant list
+            participants.addAll(csvParticipants);
+
+            // Save participants to DB stub (this effectively updates/imports data from CSV into the persistent DB)
+            for (Participant p : participants) {
+                try {
+                    teamMateDB.saveParticipant(p);
+                } catch (TeamMateDBException e) {
+                    AppLogger.error("Failed to save participant " + p.getId() + " to DB on startup", e);
+                }
+            }
         } catch (IOException e) {
             AppLogger.error("Failed loading participants", e);
-            participants = new CopyOnWriteArrayList<>();
         }
 
+        // Step 2: Initialize teams list from persistent DB (or CSV as fallback/initial load)
         try {
-            teams = new CopyOnWriteArrayList<>(fileService.loadTeams(FileService.OUTPUT_FILE, participants));
+            // Load teams from the DB and update the in-memory teams list
+            teams.addAll(teamMateDB.findAllTeams());
+            if (teams.isEmpty()) {
+                // FALLBACK: If DB was empty or failed to load, try to load teams from CSV
+                teams.addAll(fileService.loadTeams(FileService.OUTPUT_FILE, participants));
+                for (Team t : teams) {
+                    try {
+                        teamMateDB.saveTeam(t);
+                    } catch (TeamMateDBException e) {
+                        AppLogger.error("Failed to save imported team " + t.getId() + " to DB", e);
+                    }
+                }
+            }
+
             Team.initializeCounter(teams);
-            AppLogger.info("Loaded " + teams.size() + " teams from CSV.");
+            AppLogger.info("Initialized with " + teams.size() + " teams.");
+
         } catch (IOException e) {
-            AppLogger.warning("No formed teams loaded.");
-            teams = new CopyOnWriteArrayList<>();
+            AppLogger.warning("No formed teams loaded from CSV or DB.");
             Team.resetCounter();
         }
 
@@ -42,13 +82,13 @@ public class MainApp {
             switch (choice) {
                 case "1": participantMenu(scanner); break;
                 case "2": organizerMenu(scanner); break;
-                case "3": exit = true; break;
-                default: System.out.println("Invalid choice."); break;
+                case "3":
+                    exit = true;
+                    executor.shutdown(); // Shutdown the executor service
+                    break;
+                default: System.out.println("Invalid choice. Enter a number between 1-3"); break;
             }
         }
-
-        executor.shutdown();
-        AppLogger.info("Application shutting down.");
     }
 
     private static void showMainMenu() {
@@ -70,8 +110,21 @@ public class MainApp {
             String c = scanner.nextLine().trim();
             switch (c) {
                 case "1":
-                    Future<Participant> f = executor.submit(new SurveyProcessor(scanner, participants, fileService, unformedParticipantsCache));
-                    try { f.get(); } catch (Exception e) { AppLogger.warning("Survey interrupted."); }
+                    Future<Participant> f = executor.submit(
+                            new SurveyProcessor(scanner, participants, fileService, unformedParticipantsCache)
+                    );
+                    try {
+                        Participant p = f.get();
+                        if (p != null) {
+                            try {
+                                teamMateDB.saveParticipant(p); // Corrected DB call
+                            } catch (TeamMateDBException e) {
+                                AppLogger.error("Failed to save updated participant to DB", e);
+                            }
+                        }
+                    } catch (Exception e) {
+                        AppLogger.warning("Survey interrupted.");
+                    }
                     break;
                 case "2":
                     viewMyTeam(scanner);
@@ -80,23 +133,22 @@ public class MainApp {
                     back = true;
                     break;
                 default:
-                    System.out.println("Invalid.");
+                    System.out.println("Invalid choice. Please enter a number between 1-3.");
             }
         }
     }
 
     private static void viewMyTeam(Scanner scanner) {
         if (participants.isEmpty()) {
-            System.out.println("❌ No participants available yet.");
+            System.out.println("No participants available yet.");
             return;
         }
 
         System.out.print("Enter your Participant ID: ");
         String input = scanner.nextLine().trim();
 
-        // Check if input is numeric choice (menu mis-input)
         if (input.isEmpty() || input.matches("\\D+")) {
-            System.out.println("❌ Invalid Participant ID.");
+            System.out.println("Invalid Participant ID.");
             return;
         }
 
@@ -106,23 +158,22 @@ public class MainApp {
                 .orElse(null);
 
         if (found == null) {
-            System.out.println("❌ Participant ID is not available in the list.");
+            System.out.println("Participant ID is not available in the list.");
             return;
         }
 
         Team t = findTeamByParticipantId(teams, found.getId());
         if (t == null) {
-            System.out.println("❌ You are not yet assigned to a team.");
+            System.out.println("You are not yet assigned to a team.");
             return;
         }
 
-        System.out.println("✅ Your Team ID: " + t.getId());
+        System.out.println("Your Team ID: " + t.getId()); // CORRECTED: t.getId()
         System.out.println("Members:");
         for (Participant m : t.getMembers()) {
             System.out.println(" - " + m);
         }
     }
-
 
     // Organizer submenu
     private static void organizerMenu(Scanner scanner) {
@@ -144,11 +195,16 @@ public class MainApp {
                     case "1":
                         ParticipantEditor.editParticipant(participants, scanner);
                         fileService.saveParticipants(participants, FileService.INPUT_FILE);
+                        // Save all participants to DB
+                        for (Participant p : participants) teamMateDB.saveParticipant(p);
                         break;
                     case "2":
                         ParticipantEditor.removeParticipant(participants, teams, unformedParticipantsCache, scanner);
                         fileService.saveParticipants(participants, FileService.INPUT_FILE);
                         fileService.saveTeams(teams, FileService.OUTPUT_FILE);
+                        // Save all participants/teams to DB
+                        for (Participant p : participants) teamMateDB.saveParticipant(p);
+                        for (Team t : teams) teamMateDB.saveTeam(t);
                         break;
                     case "3":
                         if (unformedParticipantsCache.isEmpty()) System.out.println("No unformed participants.");
@@ -159,7 +215,8 @@ public class MainApp {
                         logs.forEach(System.out::println);
                         break;
                     case "5":
-                        participants.stream().sorted(Comparator.comparing(Participant::getId)).forEach(System.out::println);
+                        participants.stream().sorted(Comparator.comparing(Participant::getId))
+                                .forEach(System.out::println);
                         break;
                     case "6":
                         makeTeamFromUnformed(scanner);
@@ -170,58 +227,53 @@ public class MainApp {
                     case "8":
                         back = true; break;
                     default:
-                        System.out.println("Invalid option.Choose a number between 1 and 8.");
+                        System.out.println("Invalid option. Choose a number between 1 and 8.");
                 }
             } catch (IOException e) {
                 AppLogger.error("File I/O error", e);
             } catch (TeamMateException e) {
                 AppLogger.error("TeamMate error: " + e.getMessage(), e);
+            } catch (TeamMateDBException e) { // Handle DB errors here
+                AppLogger.error("Database error: " + e.getMessage(), e);
             }
         }
     }
 
-    // Form teams using ONLY unformedParticipantsCache (strict mode)
-    private static void makeTeamFromUnformed(Scanner scanner) throws TeamMateException, IOException {
+    // Form teams using ONLY unformedParticipantsCache (relaxed mode)
+    private static void makeTeamFromUnformed(Scanner scanner) throws TeamMateException, IOException, TeamMateDBException {
         if (unformedParticipantsCache.size() < 3) {
             System.out.println("Not enough participants in the waiting list.");
             return;
         }
 
         System.out.print("Enter desired team size (must be >= 3): ");
-        int teamSize = 0;
-        try {
-            teamSize = Integer.parseInt(scanner.nextLine().trim()); // read only once
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid number, try again.");
-            return;
+        int teamSize;
+        try { teamSize = Integer.parseInt(scanner.nextLine().trim()); } catch (NumberFormatException e) {
+            System.out.println("Invalid number, try again."); return;
         }
 
         if (teamSize < 3) {
-            System.out.println("Team size must be at least 3.");
-            return;
+            System.out.println("Team size must be at least 3."); return;
         }
 
         lastTeamSize = teamSize;
 
-        // === Core team formation logic ===
-        TeamBuilder tb = new TeamBuilder(); // relaxed mode for unformed participants
+        TeamBuilder tb = new TeamBuilder();
         TeamBuilder.TeamFormationResult res = tb.buildTeamsFromUnformed(
-                new ArrayList<>(unformedParticipantsCache), teamSize);
+                new ArrayList<>(unformedParticipantsCache), teamSize
+        );
 
         if (res.formedTeams.isEmpty()) {
             System.out.println("No valid team can be formed with the remaining unformed participants.");
             return;
         }
 
-        // Print newly formed teams
         for (Team t : res.formedTeams) {
             System.out.println(t);
+            teamMateDB.saveTeam(t); // Corrected DB call
         }
 
-        // Update unformed participants cache
         unformedParticipantsCache = res.unformedParticipants;
-
-        // Add formed teams to global teams list and save
         teams.addAll(res.formedTeams);
         fileService.saveTeams(teams, FileService.OUTPUT_FILE);
 
@@ -229,25 +281,34 @@ public class MainApp {
         System.out.println("Formed " + res.formedTeams.size() + " team(s).");
     }
 
-
     // Form teams using ALL participants (strict mode)
-    private static void formTeamsFromAll(Scanner scanner) throws TeamMateException, IOException {
+    private static void formTeamsFromAll(Scanner scanner) throws TeamMateException, IOException, TeamMateDBException {
         System.out.print("Enter desired team size (must be >= 3): ");
         int teamSize;
-        try { teamSize = Integer.parseInt(scanner.nextLine().trim()); } catch (Exception e) { System.out.println("Invalid."); return; }
+        try { teamSize = Integer.parseInt(scanner.nextLine().trim()); } catch (Exception e) {
+            System.out.println("Invalid."); return;
+        }
+
         lastTeamSize = teamSize;
         TeamBuilder tb = new TeamBuilder();
         TeamBuilder.TeamFormationResult res = tb.buildTeamsAndValidate(new ArrayList<>(participants), teamSize);
+
         if (res.formedTeams.isEmpty()) {
             System.out.println("No valid teams could be formed from all participants.");
             return;
         }
+
+        // Save all formed teams and participants to DB
+        for (Team t : res.formedTeams) teamMateDB.saveTeam(t);
+        for (Participant p : participants) teamMateDB.saveParticipant(p);
+
         teams.addAll(res.formedTeams);
-        // Update unformedParticipantsCache to the latest unformed participants
         unformedParticipantsCache.clear();
-        unformedParticipantsCache.addAll((Collection<? extends Participant>) res.unformedParticipants);
+        unformedParticipantsCache.addAll(res.unformedParticipants);
+
         fileService.saveTeams(teams, FileService.OUTPUT_FILE);
         fileService.saveParticipants(participants, FileService.INPUT_FILE);
+
         AppLogger.info("Formed " + res.formedTeams.size() + " team(s) from all participants.");
         System.out.println("Formed " + res.formedTeams.size() + " team(s). Unformed participants: " + res.unformedParticipants.size());
     }

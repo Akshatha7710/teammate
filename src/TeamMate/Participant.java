@@ -1,6 +1,8 @@
 package TeamMate;
 
-public class Participant {
+import java.io.Serializable;
+
+public class Participant implements Serializable {
     private final String id;
     private String name;
     private String email;
@@ -47,7 +49,7 @@ public class Participant {
 
     @Override
     public String toString() {
-        return String.format("%s - %s / %s / %s / skill=%d / %s",
-                id, name, interest, preferredRole, skillLevel, personalityType);
+        return String.format("%s - %s (%s) / %s / %s / skill=%d / %s",
+                id, name, email, interest, preferredRole, skillLevel, personalityType);
     }
 }

@@ -5,7 +5,7 @@ import java.util.Scanner;
 
 public class ParticipantEditor {
 
-    private static final List<String> GAME_OPTIONS = List.of("CS:GO", "FIFA", "DOTA2", "LOL", "VALORANT");
+    private static final List<String> GAME_OPTIONS = List.of("CS:GO", "FIFA", "DOTA 2", "Basketball", "Valorant","Chess");
     private static final List<Role> ROLE_OPTIONS = List.of(Role.ATTACKER, Role.DEFENDER, Role.STRATEGIST, Role.SUPPORTER, Role.COORDINATOR);
 
     // Edit participant
@@ -32,7 +32,7 @@ public class ParticipantEditor {
         if (!name.isEmpty()) p.setName(name);
 
         // Edit Preferred Game
-        System.out.println("Choose new preferred game (enter number, 0 to skip):");
+        System.out.println("Choose new preferred game (input number between 1-6 or press enter to skip):");
         for (int i = 0; i < GAME_OPTIONS.size(); i++) {
             System.out.println((i + 1) + ") " + GAME_OPTIONS.get(i));
         }
@@ -52,7 +52,7 @@ public class ParticipantEditor {
         }
 
         // Edit Role
-        System.out.println("Choose new role (enter number, 0 to skip):");
+        System.out.println("Choose new role (input a number between 1-5 or press enter to skip):");
         for (int i = 0; i < ROLE_OPTIONS.size(); i++) {
             System.out.println((i + 1) + ") " + ROLE_OPTIONS.get(i));
         }
