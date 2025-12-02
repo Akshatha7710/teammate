@@ -14,7 +14,7 @@ public class ParticipantEditor {
         String id = scanner.nextLine().trim();
 
         if (!id.matches("P\\d+")) {
-            System.out.println("Invalid input.");
+            System.out.println("Invalid Participant ID");
             return;
         }
 
@@ -71,7 +71,28 @@ public class ParticipantEditor {
             }
         }
 
-        System.out.println("Skill and Personality cannot be edited.");
+        // **********************************************
+        // NEW CODE ADDED: Edit Skill Level
+        // **********************************************
+        System.out.print("New Skill Level (1-10, enter to skip): ");
+        String skillInput = scanner.nextLine().trim();
+        if (!skillInput.isEmpty()) {
+            try {
+                int newSkill = Integer.parseInt(skillInput);
+                if (newSkill >= 1 && newSkill <= 10) {
+                    p.setSkillLevel(newSkill);
+                    System.out.println("Skill level updated to " + newSkill + ".");
+                } else {
+                    System.out.println("Skill level must be between 1 and 10.");
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid number format for skill level.");
+            }
+        }
+        // **********************************************
+
+        System.out.println("Personality cannot be edited.");
+        System.out.println("Participant " + p.getId() + " has been edited.");
         AppLogger.info("Participant edited: " + p.getId());
     }
 
@@ -81,7 +102,7 @@ public class ParticipantEditor {
         String id = scanner.nextLine().trim();
 
         if (!id.matches("P\\d+")) {
-            System.out.println("Invalid input.");
+            System.out.println("Invalid participant ID.");
             return;
         }
 
@@ -103,5 +124,6 @@ public class ParticipantEditor {
         unformed.removeIf(x -> x.getId().equalsIgnoreCase(id));
         AppLogger.info("Participant removed: " + id);
         System.out.println("Participant " + id + " has been removed successfully.");
+
     }
 }

@@ -37,13 +37,13 @@ public class SurveyProcessor implements Callable<Participant> {
             System.out.print("ID (e.g., P101): ");
             id = scanner.nextLine().trim();
             if (id.isEmpty()) {
-                System.out.println("Error: Participant ID is required.");
+                System.out.println("Participant ID is required.");
             } else if (!id.toUpperCase().matches("P\\d+")) {
-                System.out.println("Error: Invalid ID format. Must start with 'P' followed by digits (e.g., P015).");
+                System.out.println("Invalid ID format. Must start with 'P' followed by digits (e.g., P015).");
             } else {
                 String finalId = id;
                 if (participants.stream().anyMatch(p -> p.getId().equalsIgnoreCase(finalId))) {
-                    System.out.println("Error: A participant with this ID has already filled the survey.");
+                    System.out.println("A participant with this ID has already filled the survey.");
                 } else {
                     break;
                 }
@@ -65,7 +65,7 @@ public class SurveyProcessor implements Callable<Participant> {
             String currentEmail = emailInput.isEmpty() ? defaultEmail : emailInput;
 
             if (currentEmail.isEmpty() || !currentEmail.contains("@") || !currentEmail.contains(".")) {
-                System.out.println("Error: Valid email address is required (e.g., user@university.edu).");
+                System.out.println("Valid email address is required (e.g., user@university.edu).");
             } else {
                 email = currentEmail;
                 break;
@@ -79,9 +79,9 @@ public class SurveyProcessor implements Callable<Participant> {
             System.out.print("Preferred Game (" + gameList + "): ");
             game = scanner.nextLine().trim();
             if (game.isEmpty()) {
-                System.out.println("Error: Preferred game is required.");
+                System.out.println("Preferred game is required.");
             } else if (!ALLOWED_GAMES.contains(game.toUpperCase())) {
-                System.out.println("Error: Invalid game. Must be one of: " + gameList);
+                System.out.println("Invalid game. Must be one of: " + gameList);
             } else {
                 game = game.toUpperCase(); // Normalize game name
                 break;
@@ -98,7 +98,7 @@ public class SurveyProcessor implements Callable<Participant> {
                 role = Role.valueOf(roleInput);
                 break;
             } catch (IllegalArgumentException e) {
-                System.out.println("Error: Invalid role. Must be one of: " + roleList);
+                System.out.println("Invalid role. Must be one of: " + roleList);
             }
         }
 
@@ -113,10 +113,10 @@ public class SurveyProcessor implements Callable<Participant> {
                     skillLevel = skillInput * 10; // Scale 0-10 to 0-100
                     break;
                 } else {
-                    System.out.println("Error: Skill must be a number between 0 and 10.");
+                    System.out.println("Skill must be a number between 0 and 10.");
                 }
             } catch (NumberFormatException e) {
-                System.out.println("Error: Invalid input. Skill must be a number.");
+                System.out.println("Invalid input. Skill must be a number.");
             }
         }
 
@@ -189,9 +189,9 @@ public class SurveyProcessor implements Callable<Participant> {
                 if (rating >= 1 && rating <= 5) {
                     return rating;
                 }
-                System.out.println("Error: Rating must be a number between 1 and 5.");
+                System.out.println("Rating must be a number between 1 and 5.");
             } catch (NumberFormatException e) {
-                System.out.println("Error: Invalid input. Please enter a number.");
+                System.out.println("Invalid input. Please enter a number.");
             }
         }
     }
