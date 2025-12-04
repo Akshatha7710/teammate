@@ -3,15 +3,17 @@ package TeamMate;
 import java.io.Serializable;
 
 public class Participant implements Serializable {
-    private final String id;
+
+    private final String id;              // unique ID
     private String name;
     private String email;
-    private String interest;
-    private Role preferredRole;
+    private String interest;              // preferred game
+    private Role preferredRole;           // attacker/defender/etc.
     private int skillLevel;
     private int personalityScore;
     private PersonalityType personalityType;
 
+    // Full constructor
     public Participant(String id, String name, String email, String interest,
                        Role preferredRole, int skillLevel, int personalityScore,
                        PersonalityType personalityType) {
@@ -25,11 +27,13 @@ public class Participant implements Serializable {
         this.personalityType = personalityType;
     }
 
+    // Constructor without personality score
     public Participant(String id, String name, String email, String interest,
                        Role preferredRole, int skillLevel, PersonalityType personalityType) {
         this(id, name, email, interest, preferredRole, skillLevel, 0, personalityType);
     }
 
+    // Getters
     public String getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
@@ -39,6 +43,7 @@ public class Participant implements Serializable {
     public int getPersonalityScore() { return personalityScore; }
     public PersonalityType getPersonalityType() { return personalityType; }
 
+    // Setters
     public void setName(String name) { this.name = name; }
     public void setEmail(String email) { this.email = email; }
     public void setInterest(String interest) { this.interest = interest; }

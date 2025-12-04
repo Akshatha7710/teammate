@@ -71,9 +71,7 @@ public class ParticipantEditor {
             }
         }
 
-        // **********************************************
-        // NEW CODE ADDED: Edit Skill Level
-        // **********************************************
+        // Edit Skill Level
         System.out.print("New Skill Level (1-10, enter to skip): ");
         String skillInput = scanner.nextLine().trim();
         if (!skillInput.isEmpty()) {
@@ -89,7 +87,6 @@ public class ParticipantEditor {
                 System.out.println("Invalid number format for skill level.");
             }
         }
-        // **********************************************
 
         System.out.println("Personality cannot be edited.");
         System.out.println("Participant " + p.getId() + " has been edited.");

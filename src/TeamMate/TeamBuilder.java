@@ -9,9 +9,7 @@ public class TeamBuilder {
     private static final int MINIMUM_ACCEPTABLE_SIZE = 3;
     private static final int MAX_SAME_GAME_PER_TEAM = 2;
 
-    // ------------------------
     // THREAD POOL FOR SCORING
-    // ------------------------
     private final ExecutorService executor =
             Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
@@ -25,9 +23,7 @@ public class TeamBuilder {
         }
     }
 
-    // ========================================================================
     // OPTION 7 → STRICT VALIDATION FROM ALL PARTICIPANTS
-    // ========================================================================
     public TeamFormationResult buildTeamsAndValidate(List<Participant> participants, int teamSize)
             throws TeamMateException {
 
@@ -121,9 +117,7 @@ public class TeamBuilder {
         return new TeamFormationResult(formed, unformed);
     }
 
-    // ========================================================================
     // OPTION 6 → RELAXED VALIDATION (ONLY UNFORMED)
-    // ========================================================================
     public TeamFormationResult buildTeamsFromUnformed(List<Participant> participants, int teamSize)
             throws TeamMateException {
 
@@ -208,9 +202,7 @@ public class TeamBuilder {
         return new TeamFormationResult(formed, unformed);
     }
 
-    // ========================================================================
     // MULTITHREADED SCORING (FAST)
-    // ========================================================================
     private List<Participant> rankCandidatesParallel(List<Participant> pool, Team team, int teamSize) {
         List<Callable<Map.Entry<Participant, Double>>> tasks = new ArrayList<>();
 
@@ -236,9 +228,7 @@ public class TeamBuilder {
         }
     }
 
-    // ========================================================================
     // HELPER METHODS
-    // ========================================================================
     private void undoRollback(List<Participant> selected, List<Participant> pool,
                               Map<PersonalityType, List<Participant>> byPersonality) {
         for (Participant p : selected) {
@@ -275,6 +265,7 @@ public class TeamBuilder {
         return sameGameCount < MAX_SAME_GAME_PER_TEAM;
     }
 
+    // making balancing teams based on leader,thinker and balanced
     private boolean validateTeamStrict(Team t, int teamSize) {
         if (t.size() != teamSize) return false;
 
@@ -296,6 +287,7 @@ public class TeamBuilder {
         return true;
     }
 
+    //checking for conditions
     private boolean validateTeamFinalSize(Team t) {
         if (t.size() < MINIMUM_ACCEPTABLE_SIZE) return false;
 
@@ -312,6 +304,7 @@ public class TeamBuilder {
         return true;
     }
 
+    // calculate score to determine leader,thinker or balanced
     private double calculateScore(Participant p, Team team, int teamSize) {
         double score = 0.0;
 

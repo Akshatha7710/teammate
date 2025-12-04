@@ -117,7 +117,7 @@ public class MainApp {
                         Participant p = f.get();
                         if (p != null) {
                             try {
-                                teamMateDB.saveParticipant(p); // Corrected DB call
+                                teamMateDB.saveParticipant(p);
                             } catch (TeamMateDBException e) {
                                 AppLogger.error("Failed to save updated participant to DB", e);
                             }
@@ -168,7 +168,7 @@ public class MainApp {
             return;
         }
 
-        System.out.println("Your Team ID: " + t.getId()); // CORRECTED: t.getId()
+        System.out.println("Your Team ID: " + t.getId());
         System.out.println("Members:");
         for (Participant m : t.getMembers()) {
             System.out.println(" - " + m);
@@ -270,7 +270,7 @@ public class MainApp {
 
         for (Team t : res.formedTeams) {
             System.out.println(t);
-            teamMateDB.saveTeam(t); // Corrected DB call
+            teamMateDB.saveTeam(t);
         }
 
         unformedParticipantsCache = res.unformedParticipants;
@@ -285,13 +285,29 @@ public class MainApp {
     private static void formTeamsFromAll(Scanner scanner) throws TeamMateException, IOException, TeamMateDBException {
         System.out.print("Enter desired team size (must be >= 3): ");
         int teamSize;
-        try { teamSize = Integer.parseInt(scanner.nextLine().trim()); } catch (Exception e) {
-            System.out.println("Invalid."); return;
+        try {
+            teamSize = Integer.parseInt(scanner.nextLine().trim());
+        } catch (Exception e) {
+            System.out.println("Invalid.");
+            return;
         }
 
         lastTeamSize = teamSize;
         TeamBuilder tb = new TeamBuilder();
-        TeamBuilder.TeamFormationResult res = tb.buildTeamsAndValidate(new ArrayList<>(participants), teamSize);
+        // 1. Declare 'res' outside the try-block
+        TeamBuilder.TeamFormationResult res;
+
+        // 2. Wrap the call in a try-catch block for validation handling
+        try {
+            res = tb.buildTeamsAndValidate(new ArrayList<>(participants), teamSize);
+        } catch (TeamMateException e) {
+            // This block executes if teamSize < 3
+            System.out.println(e.getMessage()); // Prints: "Team size must be at least 3"
+            AppLogger.warning("Team formation failed: " + e.getMessage());
+            return; // Stops execution here
+        }
+
+        // Execution only reaches here if validation in TeamBuilder passed.
 
         if (res.formedTeams.isEmpty()) {
             System.out.println("No valid teams could be formed from all participants.");
