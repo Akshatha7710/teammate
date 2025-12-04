@@ -1,4 +1,3 @@
-TeamMate README (Short)
 TeamMate is a Java console application designed to form balanced, skill-optimized teams from a list of participants. It uses a concurrent algorithm to ensure fairness and efficiency.
 
 Key Features & Rules
