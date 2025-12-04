@@ -47,7 +47,11 @@ public class MainApp {
                     AppLogger.error("Failed to save participant " + p.getId() + " to DB on startup", e);
                 }
             }
-        } catch (IOException e) {
+        } catch (java.io.FileNotFoundException e) {
+            // YOUR CUSTOM REQUIREMENT: File not found
+            AppLogger.error("CSV file not found: " + FileService.INPUT_FILE, e);
+            System.out.println("NO PARTICIPANT FOUND");
+        }catch (IOException e) {
             AppLogger.error("Failed loading participants", e);
         }
 
@@ -212,11 +216,27 @@ public class MainApp {
                         break;
                     case "4":
                         List<String> logs = AppLogger.getRecentLogs();
-                        logs.forEach(System.out::println);
+
+                        // Check if the log list is empty
+                        if (logs.isEmpty()) {
+                            System.out.println("Logs Not Found");
+                        } else {
+                            System.out.println("\n--- RECENT APPLICATION LOGS (Newest First) ---");
+                            logs.forEach(System.out::println);
+                            System.out.println("----------------------------------------------\n");
+                        }
                         break;
                     case "5":
-                        participants.stream().sorted(Comparator.comparing(Participant::getId))
-                                .forEach(System.out::println);
+                        if (participants.isEmpty()) {
+                            System.out.println("No Participant Found.");
+                        } else {
+                            System.out.println("\n--- ALL PARTICIPANTS (" + participants.size() + " total) ---");
+                            // Sorting by ID before display is helpful for the user
+                            participants.stream()
+                                    .sorted(Comparator.comparing(Participant::getId))
+                                    .forEach(System.out::println);
+                            System.out.println("----------------------------------------------\n");
+                        }
                         break;
                     case "6":
                         makeTeamFromUnformed(scanner);
@@ -242,7 +262,7 @@ public class MainApp {
     // Form teams using ONLY unformedParticipantsCache (relaxed mode)
     private static void makeTeamFromUnformed(Scanner scanner) throws TeamMateException, IOException, TeamMateDBException {
         if (unformedParticipantsCache.size() < 3) {
-            System.out.println("Not enough participants in the waiting list.");
+            System.out.println("No participants in the waiting list.");
             return;
         }
 
